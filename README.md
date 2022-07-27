@@ -1,9 +1,12 @@
 - 注释的代码来自于github用户HKUST-Aerial-Robotics，由秦通博士和其团队所写，[代码仓库链接](https://github.com/HKUST-Aerial-Robotics/A-LOAM.git)
 
 # 本注释主要参考以下：
-1.github用户[cgbcgb的A-LOAM-NOTED](https://github.com/cgbcgb/A-LOAM-NOTED.git)
+1. github用户[cgbcgb的A-LOAM-NOTED](https://github.com/cgbcgb/A-LOAM-NOTED.git)
+
+
 2. 博客园用户[WellP.C的博客：LOAM笔记及A-LOAM源码阅读](https://www.cnblogs.com/wellp/p/8877990.html)
-3.csdn用户[月照银海似蛟龙](https://blog.csdn.net/qq_32761549?type=blog)的多篇博客
+
+3. csdn用户[月照银海似蛟龙](https://blog.csdn.net/qq_32761549?type=blog)的多篇博客
 
 # A-LOAM
 ## Advanced implementation of LOAM
