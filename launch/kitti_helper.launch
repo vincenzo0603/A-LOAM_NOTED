@@ -1,0 +1,11 @@
+<launch>
+    
+
+    <node name="kittiHelper" pkg="aloam_velodyne" type="kittiHelper" output="screen"> <!-- 要启动的节点 -->
+        <param name="dataset_folder" type="string" value="/data/KITTI/odometry/" /> <!-- 数据的路径 -->
+        <param name="sequence_number" type="string" value="00" /> <!-- 数据的sequence -->
+        <param name="to_bag" type="bool" value="false" /> <!-- 是否保存bag文件 -->
+        <param name="output_bag_file" type="string" value="/tmp/kitti.bag" /> <!-- bag的输出路径 --> <!-- replace with your output folder -->
+        <param name="publish_delay" type="int" value="1" /> <!-- topic发布的延时 -->
+    </node>
+</launch>
