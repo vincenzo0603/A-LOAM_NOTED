@@ -617,11 +617,13 @@ void process()
 			pcl::PointCloud<PointType>::Ptr laserCloudCornerStack(new pcl::PointCloud<PointType>());
 			downSizeFilterCorner.setInputCloud(laserCloudCornerLast);
 			downSizeFilterCorner.filter(*laserCloudCornerStack);
+			// 当前帧角点个数（降采样后）
 			int laserCloudCornerStackNum = laserCloudCornerStack->points.size();
 
 			pcl::PointCloud<PointType>::Ptr laserCloudSurfStack(new pcl::PointCloud<PointType>());
 			downSizeFilterSurf.setInputCloud(laserCloudSurfLast);
 			downSizeFilterSurf.filter(*laserCloudSurfStack);
+			// 当前帧平面点个数（降采样后）
 			int laserCloudSurfStackNum = laserCloudSurfStack->points.size();
 
 			printf("map prepare time %f ms\n", t_shift.toc());
@@ -645,12 +647,12 @@ void process()
 
 					ceres::Problem problem(problem_options);// 构建问题
 					problem.AddParameterBlock(parameters, 4, q_parameterization);//添加四元数得参数模块
-					problem.AddParameterBlock(parameters + 4, 3);//平移的参数块，parameters+4就是上面四元数后的指针便宜，3就是平移的参数个数
+					problem.AddParameterBlock(parameters + 4, 3);//平移的参数块，parameters+4就是上面四元数后的指针偏移，3就是平移的参数个数
 
 
 					TicToc t_data;
 					int corner_num = 0;
-
+					// 构建角点约束 遍历当前帧角点
 					for (int i = 0; i < laserCloudCornerStackNum; i++)
 					{
 						pointOri = laserCloudCornerStack->points[i];
@@ -687,7 +689,7 @@ void process()
 							Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> saes(covMat);
 
 							// if is indeed line feature
-							// note Eigen library sort eigenvalues in increasing order
+							// 分解后特征向量是根据特征值大小，由大到小排列，这里取出最后一列的特征向量，即线的方向  ||  note Eigen library sort eigenvalues in increasing order
 							Eigen::Vector3d unit_direction = saes.eigenvectors().col(2);// 如果5个点呈线状分布，最大的特征值对应的特征向量就是该线的方向向量
 							Eigen::Vector3d curr_point(pointOri.x, pointOri.y, pointOri.z);
 							if (saes.eigenvalues()[2] > 3 * saes.eigenvalues()[1])// 如果最大的特征值 >> 其他特征值，则5个点确实呈线状分布，否则认为直线“不够直”
@@ -734,7 +736,7 @@ void process()
 						pointAssociateToMap(&pointOri, &pointSel);
 						kdtreeSurfFromMap->nearestKSearch(pointSel, 5, pointSearchInd, pointSearchSqDis);
 
-						// 求面的法向量就不是用的PCA了（虽然论文中说还是PCA），使用的是最小二乘拟合，是为了提效？不确定
+						// 求面的法向量就不是用的PCA了（虽然论文中说还是PCA），使用的是最小二乘拟合
     					// 假设平面不通过原点，则平面的一般方程为Ax + By + Cz + 1 = 0，（相当于等号两边分别乘1/D）,用这个假设可以少算一个参数，提效。
 						Eigen::Matrix<double, 5, 3> matA0;
 						Eigen::Matrix<double, 5, 1> matB0 = -1 * Eigen::Matrix<double, 5, 1>::Ones();
@@ -757,10 +759,13 @@ void process()
 
 							// Here n(pa, pb, pc) is unit norm of plane
 							bool planeValid = true;
+							// 根据求出来的平面方程进行校验，看看是否符合平面约束
 							for (int j = 0; j < 5; j++)
 							{
 								// if OX * n > 0.2, then plane is not fit well
 								// 点(x0, y0, z0)到平面Ax + By + Cz + D = 0 的距离公式 = fabs(Ax0 + By0 + Cz0 + D) / sqrt(A^2 + B^2 + C^2)
+								// 根据点到平面距离公式  代码里好像和公式不太一样，其实是一样的
+								// 首先法向量已经被归一化了，所以分母部分已经是1了，D就成了上面求得法向量模的倒数，然后距离和0.2m做判断，大于0.2m则认为平面拟合不成功
 								if (fabs(norm(0) * laserCloudSurfFromMap->points[pointSearchInd[j]].x +
 										 norm(1) * laserCloudSurfFromMap->points[pointSearchInd[j]].y +
 										 norm(2) * laserCloudSurfFromMap->points[pointSearchInd[j]].z + negative_OA_dot_norm) > 0.2)
@@ -772,7 +777,7 @@ void process()
 							Eigen::Vector3d curr_point(pointOri.x, pointOri.y, pointOri.z);
 							if (planeValid)
 							{
-								// 构造点到面的距离残差项，同样的，具体到介绍lidarFactor.cpp时再说明该残差的具体计算方法
+								// 利用平面方程构建约束，和前端有所不同  ||  构造点到面的距离残差项
 								ceres::CostFunction *cost_function = LidarPlaneNormFactor::Create(curr_point, norm, negative_OA_dot_norm);
 								problem.AddResidualBlock(cost_function, loss_function, parameters, parameters + 4);
 								surf_num++;
@@ -806,22 +811,22 @@ void process()
 
 					printf("mapping data assosiation time %f ms \n", t_data.toc());
 
+					// 调用Ceres求解
 					TicToc t_solver;
 					ceres::Solver::Options options;
-					options.linear_solver_type = ceres::DENSE_QR;
-					options.max_num_iterations = 4;
+					options.linear_solver_type = ceres::DENSE_QR;//稠密的问题 用DENSE_QR的求解方式
+					options.max_num_iterations = 4;//最大迭代次数
 					options.minimizer_progress_to_stdout = false;
 					options.check_gradients = false;
 					options.gradient_check_relative_precision = 1e-4;
 					ceres::Solver::Summary summary;
-					ceres::Solve(options, &problem, &summary);
-					printf("mapping solver time %f ms \n", t_solver.toc());
-
+					ceres::Solve(options, &problem, &summary);//求解
+					printf("mapping solver time %f ms \n", t_solver.toc());//一次ceres求解的时间
 					//printf("time %f \n", timeLaserOdometry);
 					//printf("corner factor num %d surf factor num %d\n", corner_num, surf_num);
 					//printf("result q %f %f %f %f result t %f %f %f\n", parameters[3], parameters[0], parameters[1], parameters[2],
 					//	   parameters[4], parameters[5], parameters[6]);
-				}
+				}// 两次迭代优化结束
 				printf("mapping optimization time %f \n", t_opt.toc());
 			}
 			else
@@ -830,6 +835,7 @@ void process()
 			}
 
 			// 完成ICP（迭代2次）的特征匹配后，用最后匹配计算出的优化变量{q,t}_w_curr，更新增量{q,t}_wmap_wodom，为下一次Mapping做准备
+			// 作为下一帧 {q,t}_wmap_wodom的初始估计，因为下一帧前端激光里程计提供{q,t}_wodom_curr的估计，通过这两个转换也可以对下一帧提供{q,t}_wmap_curr的初始估计，然后ceres优化，从而循环
 			transformUpdate();
 
 			TicToc t_add;

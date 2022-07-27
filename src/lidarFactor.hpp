@@ -115,9 +115,10 @@ struct LidarPlaneFactor
 	double s;
 };
 
+// 这一个结构体 是用在laserMapping.cpp中 构建点面残差ceres
 struct LidarPlaneNormFactor
 {
-
+	// curr_point 当前点  ||  plane_unit_norm 归一化得平面法向量  ||  negative_OA_dot_norm 法向量模的倒数
 	LidarPlaneNormFactor(Eigen::Vector3d curr_point_, Eigen::Vector3d plane_unit_norm_,
 						 double negative_OA_dot_norm_) : curr_point(curr_point_), plane_unit_norm(plane_unit_norm_),
 														 negative_OA_dot_norm(negative_OA_dot_norm_) {}
@@ -125,14 +126,14 @@ struct LidarPlaneNormFactor
 	template <typename T>
 	bool operator()(const T *q, const T *t, T *residual) const
 	{
-		Eigen::Quaternion<T> q_w_curr{q[3], q[0], q[1], q[2]};
-		Eigen::Matrix<T, 3, 1> t_w_curr{t[0], t[1], t[2]};
-		Eigen::Matrix<T, 3, 1> cp{T(curr_point.x()), T(curr_point.y()), T(curr_point.z())};
-		Eigen::Matrix<T, 3, 1> point_w;
-		point_w = q_w_curr * cp + t_w_curr;
+		Eigen::Quaternion<T> q_w_curr{q[3], q[0], q[1], q[2]};	//把q转成 eigen的形式
+		Eigen::Matrix<T, 3, 1> t_w_curr{t[0], t[1], t[2]};		//把t转成 eigen的形式
+		Eigen::Matrix<T, 3, 1> cp{T(curr_point.x()), T(curr_point.y()), T(curr_point.z())};//把当前点转成 eigen的形式
+		Eigen::Matrix<T, 3, 1> point_w;//当前点投影到局部地图坐标系下的点
+		point_w = q_w_curr * cp + t_w_curr;//将当前点投影到局部地图坐标系下
 
 		Eigen::Matrix<T, 3, 1> norm(T(plane_unit_norm.x()), T(plane_unit_norm.y()), T(plane_unit_norm.z()));
-		residual[0] = norm.dot(point_w) + T(negative_OA_dot_norm);
+		residual[0] = norm.dot(point_w) + T(negative_OA_dot_norm);//求点到平面的距离 和laserMapping中做距离0.2m判断的代码是一个意思
 		return true;
 	}
 
