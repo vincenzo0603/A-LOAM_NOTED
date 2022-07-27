@@ -626,6 +626,7 @@ void process()
 
 			printf("map prepare time %f ms\n", t_shift.toc());
 			printf("map corner num %d  surf num %d \n", laserCloudCornerFromMapNum, laserCloudSurfFromMapNum);
+			// 角点不少于10个  面点不少于50个
 			if (laserCloudCornerFromMapNum > 10 && laserCloudSurfFromMapNum > 50)
 			{
 				TicToc t_opt;
@@ -637,14 +638,15 @@ void process()
 				for (int iterCount = 0; iterCount < 2; iterCount++)
 				{
 					//ceres::LossFunction *loss_function = NULL;
-					ceres::LossFunction *loss_function = new ceres::HuberLoss(0.1);
+					ceres::LossFunction *loss_function = new ceres::HuberLoss(0.1);//生成损失函数
 					ceres::LocalParameterization *q_parameterization =
-						new ceres::EigenQuaternionParameterization();
-					ceres::Problem::Options problem_options;
+						new ceres::EigenQuaternionParameterization();// 添加四元数得参数模块
+					ceres::Problem::Options problem_options;//声明ceres的 优化问题
 
-					ceres::Problem problem(problem_options);
-					problem.AddParameterBlock(parameters, 4, q_parameterization);
-					problem.AddParameterBlock(parameters + 4, 3);
+					ceres::Problem problem(problem_options);// 构建问题
+					problem.AddParameterBlock(parameters, 4, q_parameterization);//添加四元数得参数模块
+					problem.AddParameterBlock(parameters + 4, 3);//平移的参数块，parameters+4就是上面四元数后的指针便宜，3就是平移的参数个数
+
 
 					TicToc t_data;
 					int corner_num = 0;
@@ -733,7 +735,7 @@ void process()
 						kdtreeSurfFromMap->nearestKSearch(pointSel, 5, pointSearchInd, pointSearchSqDis);
 
 						// 求面的法向量就不是用的PCA了（虽然论文中说还是PCA），使用的是最小二乘拟合，是为了提效？不确定
-    					// 假设平面不通过原点，则平面的一般方程为Ax + By + Cz + 1 = 0，用这个假设可以少算一个参数，提效。
+    					// 假设平面不通过原点，则平面的一般方程为Ax + By + Cz + 1 = 0，（相当于等号两边分别乘1/D）,用这个假设可以少算一个参数，提效。
 						Eigen::Matrix<double, 5, 3> matA0;
 						Eigen::Matrix<double, 5, 1> matB0 = -1 * Eigen::Matrix<double, 5, 1>::Ones();
 						// 用上面的2个矩阵表示平面方程就是 matA0 * norm（A, B, C） = matB0，这是个超定方程组，因为数据个数超过未知数的个数
